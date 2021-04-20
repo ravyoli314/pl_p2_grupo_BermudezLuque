@@ -1,0 +1,72 @@
+/*
+   Simple +/-/* expression language; 
+   parser evaluates constant expressions on the fly
+*/
+
+package cup.example;
+
+import java_cup.runtime.*;
+import cup.example.Lexer;
+import java.io.IOException;
+import java.io.File;
+import java.io.FileInputStream;
+
+parser code {:
+  protected Lexer lexer;
+  protected int[] mem;
+:}
+
+/* define how to connect to the scanner! */
+init with {:
+  ComplexSymbolFactory f = new ComplexSymbolFactory();
+  symbolFactory = f;
+  File file = new File("input.txt");
+  FileInputStream fis = null;
+  try {
+    fis = new FileInputStream(file);
+  } catch (IOException e) {
+    e.printStackTrace();
+  } 
+  lexer = new Lexer(f,fis);
+  mem = new int[100];
+  for(int i : mem) i = 0;
+:};
+scan with {: return lexer.next_token(); :};
+
+/* Terminals (tokens returned by the scanner). */
+terminal            SEMI, PLUS, MINUS, TIMES, DIVIDE, LPAREN, RPAREN, ASSIGN, EXP, LOG, COS, SIN;
+terminal Integer    NUMBER, HEX, MEM;        // our scanner provides numbers as integers
+terminal double     FLOAT;
+
+/* Non terminals */
+non terminal            S;
+non terminal Integer    expr;      // used to store evaluated subexpressions
+
+
+/* The grammar rules */
+
+S::=       MEM:id ASSIGN Expr:e SEMI {:mem[id] = e;  :} // guardar expr en la pos de MEM
+      			|Expr:e SEMI {: RESULT = e;           :}
+      			|SEMI
+
+Expr::=		Expr:e1 PLUS Term:e2             {: RESULT = e1+e2;        :}
+			|Expr:e1 MINUS Term:e2           {: RESULT = e1-e2;        :}
+			|MINUS Term:e                    {: RESULT = -e;           :}
+			|Term:e                          {: RESULT = e;            :}
+;
+Term::=		Term:term TIMES Factor:factor   {: RESULT = term * factor;  :}
+			|Term:term DIVIDE Factor:factor {: RESULT = term / factor   :}
+			|Factor:factor                  {: RESULT = factor;         :}
+;
+Factor::=	LPAREN Expr:e RPAREN            {: RESULT = e;           :}
+			|Number:value                   {: RESULT = value        :}
+            |MEM:id                         {: RESULT = mem[id]      :}
+            |Function:function              {: RESULT = function;    :}
+;
+
+Function::= EXP LPAREN Factor:factor RPAREN     {: RESULT = Math.exp(factor); :}
+            | LOG LPAREN Factor:factor RPAREN   {: RESULT = Math.log(factor); :}
+            | COS LPAREN Factor:factor RPAREN   {: RESULT = Math.cos(factor); :}
+            | SIN LPAREN Factor:factor RPAREN   {: RESULT = Math.sin(factor); :}
+
+Number::=   NUMBER:n | HEX:n | FLOAT:n      {: RESULT = n;         :}   ;
